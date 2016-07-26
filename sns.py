@@ -59,6 +59,36 @@ class SNSTopicCreator(SNSTopicShell):
                         return False, "Couldn't subscribe to SNS topic"
             else:
                 return False, "Couldn't create SNS topic"
+class SNSTopicWaiter(SNSTopicShell):
+
+    # Wait for the user to confirm the subscription to the SNS topic
+    def _wait_for_confirmation_activity(self, task):
+        if task:
+            subscription_data = json.loads(task)
+        else:
+            self.fail(reason=json.dumps({"reason", "Didn't receive any input!", "detail", "" }))
+            return
+
+        sns_client = sns.SNSConnection(aws_access_key_id=ACCESS, aws_secret_access_key=SECRET)
+        topic = sns_client.get_topic_attributes(subscription_data["topic_arn"])
+
+        if topic:
+            subscription_confirmed = False
+        else:
+            self.fail(result=json.dumps({ "reason" : "Couldn't get SWF topic ARN", "detail" : "Topic ARN: %s" % subscription_data["topic_arn"] }))
+            return
+
+        # Loop through all of the subscriptions to this topic until we get some indication that a subscription was confirmed.
+        while not subscription_confirmed:
+            for sub in sns_client.get_all_subscriptions_by_topic(subscription_data["topic_arn"])["ListSubscriptionsByTopicResponse"]["ListSubscriptionsByTopicResult"]["Subscriptions"]:
+                if subscription_data[sub["Protocol"]]["endpoint"] == sub["Endpoint"]:
+                    # this is one of the endpoints we're interested in. Is it subscribed?
+                    if sub["SubscriptionArn"] != 'PendingConfirmation':
+                        subscription_data[sub["Protocol"]]["subscription_arn"] = sub["SubscriptionArn"]
+                        subscription_confirmed = True
+
+        self.complete(result=json.dumps(subscription_data))
+        return True, json.dumps(subscription_data)
 
 if __name__ == '__main__':
     st = SNSTopicCreator()
