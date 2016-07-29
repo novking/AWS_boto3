@@ -89,6 +89,21 @@ class SNSTopicWaiter(SNSTopicShell):
 
         self.complete(result=json.dumps(subscription_data))
         return True, json.dumps(subscription_data)
+class SNSTopicConfirmer(SNSTopicShell):
 
+        def _send_result_activity(self, task):
+            if task:
+                subscription_data = json.loads(task)
+            else:
+                self.fail(reason=json.dumps({"reason", "Didn't receive any input!", "detail", "" }))
+                return
+
+            sns_client = sns.SNSConnection(aws_access_key_id=ACCESS, aws_secret_access_key=SECRET)
+            results = "Thanks, you've successfully confirmed registration, and your workflow is complete!"
+
+
+            sns_client.publish(topic=subscription_data["topic_arn"], message=results)
+            self.complete(result=results)
+            return True
 if __name__ == '__main__':
     st = SNSTopicCreator()
